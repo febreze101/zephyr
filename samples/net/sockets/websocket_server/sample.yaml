@@ -1,0 +1,15 @@
+common:
+  tags:
+    - net
+    - http
+    - websocket_server
+    - websocket
+  min_ram: 35
+  depends_on: netif
+sample:
+  description: Websocket server sample
+  name: websocket_server
+tests:
+  sample.net.sockets.websocket_server:
+    platform_exclude: intel_adsp_cavs25
+    harness: net
