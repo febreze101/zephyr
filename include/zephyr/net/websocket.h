@@ -180,7 +180,7 @@ struct websocket_server {
  * called after connection is established. The returned value is a new socket
  * descriptor that can be used to send / receive data using the BSD socket API.
  *
- * @param http_sock Socket id to the server. Note that this socket is used to do
+ * @param http_sock Socket id of the server. Note that this socket is used to do
  *        HTTP handshakes etc. The actual Websocket connectivity is done via the
  *        returned websocket id. Note that the http_sock must not be closed
  *        after this function returns as it is used to deliver the Websocket
@@ -196,6 +196,13 @@ struct websocket_server {
 int websocket_accept(int sock, struct websocket_server *srv, int32_t timeout,
 		     void *user_data);
 
+/**
+ * @brief Finds websocket and returns corresponding sockaddr.
+ * 
+ * @param sock socket id of the server
+ * @param addr socket address structure to return
+ * @param addrlen addr structure length
+*/
 void websocket_sockaddr(int sock, struct sockaddr* addr, socklen_t *addrlen);
 
 /**

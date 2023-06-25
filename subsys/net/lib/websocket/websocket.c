@@ -87,8 +87,6 @@ static const char http_400_bad_req[] = {
 static int sendmsg_all(int sock, const struct msghdr *message, int flags);
 #endif
 
-int print_http_handshake_header(const websocket_http_handshake_header* hh);
-
 static const char *opcode2str(enum websocket_opcode opcode)
 {
 	switch (opcode) {
@@ -456,10 +454,8 @@ static int websocket_server_http_handshake(struct websocket_server *srv,
 		}
 
 		// Parse http handshake:
-		// LOG_HEXDUMP_INF(ctx->recv_buf.buf, ctx->recv_buf.size, "---> tmp_buf: ");
 		websocket_parse_client_http_handshake(
 			(const char*)ctx->recv_buf.buf, hh);
-		print_http_handshake_header(hh);
 
 		// Interpret http request:
 
@@ -1330,42 +1326,6 @@ void websocket_init(void)
 	k_sem_init(&contexts_lock, 1, K_SEM_MAX_LIMIT);
 }
 
-void print_char_by_char(const char* arr, size_t len)
-{
-	for(size_t i = 0; i < len; i++) {
-		printf("%c", arr[i]);
-	}
-}
-
-int print_http_handshake_header(const websocket_http_handshake_header* hh)
-{
-	printf("\n---- parsed http-header ----\n");
-	if(hh) {
-		printf("\tpath: \"%s\"\n", hh->path);
-
-		printf("\tsec_websocket_key: \"");
-		print_char_by_char(hh->sec_websocket_key,
-				MIN(strlen(hh->sec_websocket_key),
-				sizeof(hh->sec_websocket_key)));
-		printf("\"\n");
-		printf("\tsec_websocket_key_cnt: \"%d\"\n", hh->sec_websocket_key_cnt);
-
-		printf("\thost: \"");
-		print_char_by_char(hh->host, MIN(strlen(hh->host),
-					sizeof(hh->host)));
-		printf("\"\n");
-
-		printf("\thttp_version_major: \"%d\"\n", hh->http_version_major);
-		printf("\thttp_version_minor: \"%d\"\n", hh->http_version_minor);
-		printf("\tsec_websocket_version: \"%d\"\n", hh->sec_websocket_version);
-		printf("\tupgrade_websocket: \"%d\"\n", hh->upgrade_websocket);
-		printf("\tconnection_upgrade: \"%d\"\n", hh->connection_upgrade);
-		printf("\tfinal: \"%d\"\n", hh->final);
-	}
-	printf("------------------------------\n");
-	return 0;
-}
-
 void str_tolower(char* str)
 {
 	for (int i = 0; str[i] != '\0'; i++) {
@@ -1379,27 +1339,37 @@ void copy_substr(char* src, char* dst, size_t dst_len, const char end_char) {
 	memcpy(dst, src, MIN(sub_str_len, dst_len));
 }
 
-bool find_field_as_lower(char* str, size_t field_name_len,
+bool find_field_lower(char* str, size_t field_name_len,
 			const char* field_val, size_t field_val_len) {
 	const size_t field_name_offset = field_name_len;
 	const size_t field_len = MAX(strlen(str + field_name_offset),
-				     field_val_len);
+					field_val_len);
 	str_tolower(str + field_name_offset);
-	return strncmp(str + field_name_offset, field_val, field_len) == 0;
+	int ret = -1;
+	void* p = str + field_name_offset;
+	while(ret != 0) {
+	ret = strncmp(p, field_val, field_len);
+	p = UINT_TO_POINTER(POINTER_TO_UINT(p) + 1);
+	if((*(char*)p) == '\n' || (*(char*)p) == '\r' || p == NULL) {
+		break;
+	}
+	}
+	return ret == 0;
 }
 
 size_t websocket_parse_client_http_handshake(const char *request,
 				websocket_http_handshake_header *hh)
 {
 	size_t bytes_cnt = 0;
-	char buffer[MAX_HTTP_HEADER_SIZE];
+	char buffer[MAX_HTTP_HEADER_SIZE] = {0};
 	const char* last_char = strstr(request, "\r\n\r\n");
 	const size_t header_len = last_char - request;
 	char* saveptr = NULL;
 
 	if (header_len >= MAX_HTTP_HEADER_SIZE) {
-		// "ERROR: Header size exceeds maximum allowed size.";
-		// errno = -1;
+		errno = -ENOBUFS;
+		LOG_ERR("Header size exceeds maximum allowed size of %d",
+			MAX_HTTP_HEADER_SIZE);
 		return bytes_cnt;
 	}
 
@@ -1408,8 +1378,8 @@ size_t websocket_parse_client_http_handshake(const char *request,
 	char *line = strtok_r(buffer, "\r\n", &saveptr);
 	bytes_cnt += strlen(line) + sizeof("\r\n") - 1;
 	while (line != NULL) {
-		printf("--> bytes_cnt: %d, line:[%s]\n--> saveptr:[%s]\n\n",
-			bytes_cnt, line, saveptr);
+		// LOG_DBG("bytes_cnt: %d, line: [%s] saveptr: [%s]",
+		// 	bytes_cnt, line, saveptr);
 		if (strncmp(line, GET_STR, sizeof(GET_STR) - 1) == 0) {
 			// Parse path:
 			copy_substr(line + strlen(GET_STR) + 1, hh->path,
@@ -1423,13 +1393,13 @@ size_t websocket_parse_client_http_handshake(const char *request,
 			hh->http_version_minor = atoi(strchr(version, '.') + 1);
 		} else if (strncmp(line, upgrade_field_str,
 				   sizeof(upgrade_field_str) - 1) == 0) {
-			hh->upgrade_websocket = find_field_as_lower(line,
+			hh->upgrade_websocket = find_field_lower(line,
 							sizeof(upgrade_field_str),
 							websocket_str,
 							sizeof(websocket_str) - 1);
 		} else if (strncmp(line, connection_field_str,
 				   sizeof(connection_field_str) - 1) == 0) {
-			hh->connection_upgrade = find_field_as_lower(line,
+			hh->connection_upgrade = find_field_lower(line,
 							sizeof(connection_field_str),
 							upgrade_str,
 							sizeof(upgrade_str) - 1);

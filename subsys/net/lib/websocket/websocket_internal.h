@@ -45,8 +45,8 @@ typedef struct {
     bool upgrade_websocket;
     bool connection_upgrade;
     bool final;  // shows if the header is finalized
-    char path[64];
-    char host[64];
+    char path[128];
+    char host[128];
     char sec_websocket_key[24];
 } websocket_http_handshake_header;
 
@@ -192,8 +192,13 @@ typedef void (*websocket_context_cb_t)(struct websocket_context *ctx,
 void websocket_context_foreach(websocket_context_cb_t cb, void *user_data);
 
 /**
-Parses websocket handshake header and returns number of byte processed.
-It will set errno of failure and number of bytes procesed equeal zero.
+ * @brief Parses websocket handshake header and returns number of byte processed.
+ * It will set errno of failure and number of bytes procesed equal zero.
+ * 
+ * @param request request buffer with the handshake
+ * @param hh pointer to websocket_http_handshake_header structure parsed
+ * 
+ * @return number of bytes parsed in request
 */
 size_t websocket_parse_client_http_handshake(const char *request,
 					websocket_http_handshake_header *hh);
