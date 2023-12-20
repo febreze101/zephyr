@@ -126,6 +126,85 @@ struct websocket_request {
 int websocket_connect(int http_sock, struct websocket_request *req,
 		      int32_t timeout, void *user_data);
 
+
+/**
+ * @typedef websocket_accept_cb_t
+ * @brief Callback called after Websocket connection is accepted.
+ *
+ * @param ws_sock Websocket id
+ * @param user_data A valid pointer on some user data or NULL
+ *
+ * @return 0 if ok, <0 if there is an error and connection should be aborted
+ */
+typedef int (*websocket_accept_cb_t)(int ws_sock, void *user_data);
+
+
+/**
+ * Websocket server handler. This contains all the data that is
+ * needed when doing a Websocket server.
+ */
+struct websocket_server {
+	/** Host of the Websocket server when doing HTTP handshakes. */
+	const char *host;
+
+	/** URL of the Websocket. */
+	const char *url;
+
+	/** User supplied callback function to call when optional headers need
+	 * to be sent. This can be NULL, in which case the optional_headers
+	 * field in http_request is used. The idea of this optional_headers
+	 * callback is to allow user to send more HTTP header data that is
+	 * practical to store in allocated memory.
+	 */
+	http_header_cb_t optional_headers_cb;
+
+	/** A NULL terminated list of any optional headers that
+	 * should be added to the HTTP request. May be NULL.
+	 * If the optional_headers_cb is specified, then this field is ignored.
+	 */
+	const char **optional_headers;
+
+	/** User supplied callback function to call when a connection is accepted.
+	 */
+	websocket_accept_cb_t cb;
+
+	/** User supplied buffer where HTTP connection data is stored */
+	uint8_t *tmp_buf;
+
+	/** Length of the user supplied temp buffer */
+	size_t tmp_buf_len;
+};
+
+/**
+ * @brief Accept socket connection request to provide Websocket service. The callback is
+ * called after connection is established. The returned value is a new socket
+ * descriptor that can be used to send / receive data using the BSD socket API.
+ *
+ * @param http_sock Socket id of the server. Note that this socket is used to do
+ *        HTTP handshakes etc. The actual Websocket connectivity is done via the
+ *        returned websocket id. Note that the http_sock must not be closed
+ *        after this function returns as it is used to deliver the Websocket
+ *        packets to the Websocket server.
+ * @param srv Websocket server handler. User should allocate and fill the server handler
+ *        data.
+ * @param timeout Max timeout to wait for the connection from client. The timeout value is
+ *        in milliseconds. Value SYS_FOREVER_MS means to wait forever.
+ * @param user_data User specified data that is passed to the callback.
+ *
+ * @return Websocket id to be used when sending/receiving Websocket data.
+ */
+int websocket_accept(int sock, struct websocket_server *srv, int32_t timeout,
+		     void *user_data);
+
+/**
+ * @brief Finds websocket and returns corresponding sockaddr.
+ * 
+ * @param sock socket id of the server
+ * @param addr socket address structure to return
+ * @param addrlen addr structure length
+*/
+void websocket_sockaddr(int sock, struct sockaddr* addr, socklen_t *addrlen);
+
 /**
  * @brief Send websocket msg to peer.
  *

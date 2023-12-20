@@ -35,6 +35,22 @@ enum websocket_parser_state {
 };
 
 /**
+ * Websocket HTTP header handschake.
+*/
+typedef struct {
+    size_t sec_websocket_key_cnt;  // counts number of appearences of sec_websocket_key field
+    uint8_t http_version_major;
+    uint8_t http_version_minor;
+    uint8_t sec_websocket_version;
+    bool upgrade_websocket;
+    bool connection_upgrade;
+    bool final;  // shows if the header is finalized
+    char path[128];
+    char host[128];
+    char sec_websocket_key[24];
+} websocket_http_handshake_header;
+
+/**
  * Description of external buffers for payload and receiving
  */
 struct websocket_buffer {
@@ -81,6 +97,12 @@ __net_socket struct websocket_context {
 		 */
 		int sock;
 	};
+
+	/** Client address */
+	struct sockaddr client_addr;
+	socklen_t addrlen;
+
+	websocket_http_handshake_header hs_header;
 
 	/** Buffer for receiving from TCP socket.
 	 * This buffer used for HTTP handshakes and Websocket packet parser.
@@ -168,3 +190,15 @@ typedef void (*websocket_context_cb_t)(struct websocket_context *ctx,
  * @param user_data Caller specific data.
  */
 void websocket_context_foreach(websocket_context_cb_t cb, void *user_data);
+
+/**
+ * @brief Parses websocket handshake header and returns number of byte processed.
+ * It will set errno of failure and number of bytes procesed equal zero.
+ * 
+ * @param request request buffer with the handshake
+ * @param hh pointer to websocket_http_handshake_header structure parsed
+ * 
+ * @return number of bytes parsed in request
+*/
+size_t websocket_parse_client_http_handshake(const char *request,
+					websocket_http_handshake_header *hh);
